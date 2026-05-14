@@ -49,7 +49,7 @@ impl Scheduler {
     /// The score rewards cells that deviate from ambient conditions or carry
     /// mana, making them candidates for physics updates.
     pub fn enqueue_if_active(&mut self, idx: usize, cell: &Cell) {
-        let score = (cell.temperature - 20.0).abs() * 0.1
+        let score = (cell.temperature - 20.0).abs() * 0.5
             + (cell.pressure - 1.0).abs() * 2.0
             + cell.mana_density * 10.0;
 
