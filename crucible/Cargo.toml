@@ -3,8 +3,19 @@ name = "crucible"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "crucible"
+path = "src/lib.rs"
+
+[[bin]]
+name = "crucible"
+path = "src/main.rs"
+
+[[bin]]
+name = "sandbox"
+path = "src/bin/sandbox.rs"
+
 [dependencies]
-pixels = "0.13"
-winit = { version = "0.29", features = ["rwh_05"] }
-bytemuck = { version = "1", features = ["derive"] }
 ordered-float = "3"
+eframe = { version = "0.29", features = ["wgpu"] }
+egui = "0.29"

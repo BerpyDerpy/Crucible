@@ -1,113 +1,59 @@
-mod cell;
-mod grid;
-mod renderer;
-mod rules;
-mod scenario;
-mod scheduler;
-
-use winit::{
-    dpi::LogicalSize,
-    event::{Event, KeyEvent, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    keyboard::{Key, NamedKey},
-    window::WindowBuilder,
-};
-
-use grid::Grid;
-use renderer::Renderer;
-use scheduler::Scheduler;
-
-const GRID_W: usize = 120;
-const GRID_H: usize = 120;
-const CELL_SIZE: usize = 6;
-const MAX_CELLS_PER_TICK: usize = 6000;
+use crucible::cell::{Cell, Material};
+use crucible::grid::Grid;
 
 fn main() {
-    // simulation state
-    let mut grid = Grid::new(GRID_W, GRID_H);
-    scenario::dome_test(&mut grid);
+    let width = 12;
+    let height = 12;
+    let mut grid = Grid::new(width, height);
 
-    let mut scheduler = Scheduler::new(GRID_W * GRID_H);
-    scenario::seed_scenario(&mut scheduler, &grid);
+    for x in 0..width {
+        grid.set(x, height - 1, Cell::new(Material::Earth));
+    }
 
-    // window + renderer
-    let event_loop = EventLoop::new().unwrap();
+    let fire_row = height - 2;
+    for x in 2..width - 2 {
+        grid.set(
+            x,
+            fire_row,
+            Cell::new(Material::Fire).with_temperature(1400.0),
+        );
+    }
 
-    let window_size = LogicalSize::new(
-        (GRID_W * CELL_SIZE) as u32,
-        (GRID_H * CELL_SIZE) as u32,
+    for y in (fire_row - 2)..fire_row {
+        for x in 3..width - 3 {
+            grid.set(x, y, Cell::new(Material::Water).with_temperature(290.0));
+        }
+    }
+
+    let probes: [(&str, usize, usize); 4] = [
+        ("fire   ", 6, fire_row),
+        ("water_l", 6, fire_row - 1),
+        ("water_u", 6, fire_row - 2),
+        ("air_top", 6, 2),
+    ];
+
+    println!("=== crucible headless run: {}x{}, 500 ticks ===", width, height);
+    print_probes(&grid, 0, &probes);
+
+    for step in 1..=500 {
+        grid.tick();
+        if step % 50 == 0 {
+            print_probes(&grid, step, &probes);
+        }
+    }
+}
+
+fn print_probes(grid: &Grid, step: usize, probes: &[(&str, usize, usize)]) {
+    println!("\n-- tick {:>3} --", step);
+    println!(
+        "  {:<8} {:<8} {:>8} {:>10} {:>10} {:>10}",
+        "label", "mat", "T(K)", "P(Pa)", "vx", "vy"
     );
-    let window = WindowBuilder::new()
-        .with_title("crucible dome test")
-        .with_inner_size(window_size)
-        .with_min_inner_size(window_size)
-        .build(&event_loop)
-        .unwrap();
-
-    let mut renderer = Renderer::new(&window, GRID_W, GRID_H, CELL_SIZE);
-    let mut tick_count: u64 = 0;
-
-    // event loop
-    event_loop
-        .run(move |event, elwt| {
-            elwt.set_control_flow(ControlFlow::Poll);
-
-            match event {
-                Event::WindowEvent { event, .. } => match event {
-                    // close
-                    WindowEvent::CloseRequested => {
-                        elwt.exit();
-                    }
-
-                    // escape key
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                logical_key: Key::Named(NamedKey::Escape),
-                                ..
-                            },
-                        ..
-                    } => {
-                        elwt.exit();
-                    }
-
-                    // redraw requested
-                    WindowEvent::RedrawRequested => {
-                        // advance simulation
-                        grid.tick(&mut scheduler, MAX_CELLS_PER_TICK);
-                        tick_count += 1;
-
-                        // Debug probe: print temperature of cell (60, 50)
-                        // every 100 ticks.
-                        if tick_count % 100 == 0 {
-                            let probe = grid.get(60, 50);
-                            println!(
-                                "[tick {}] cell(60,50): temp={:.2} pressure={:.2} mat={:?}",
-                                tick_count,
-                                probe.temperature,
-                                probe.pressure,
-                                probe.material,
-                            );
-                        }
-
-                        // render
-                        renderer.draw(&grid);
-                        renderer.render();
-
-                        // request another frame immediately
-                        window.request_redraw();
-                    }
-
-                    _ => {}
-                },
-
-                // kick off the first redraw after the window appears
-                Event::AboutToWait => {
-                    window.request_redraw();
-                }
-
-                _ => {}
-            }
-        })
-        .unwrap();
+    for (label, x, y) in probes {
+        let c = grid.get(*x, *y);
+        println!(
+            "  {:<8} {:<8?} {:>8.2} {:>10.1} {:>10.3} {:>10.3}",
+            label, c.material, c.temperature, c.pressure, c.velocity.x, c.velocity.y
+        );
+    }
 }
